@@ -13,12 +13,14 @@ from exabgp.bgp.message.update.attribute.bgpls.linkstate import LinkState
 from exabgp.bgp.message.update.attribute.bgpls.linkstate import BaseLS
 
 
-def _u24(b):
+def _u24(b: bytes) -> int:
     # Convert 3 bytes (big-endian) to int
+    # Expect exactly 3 bytes (bytes[1:4] slices below always pass 3 bytes)
     return unpack('!L', b'\x00' + b)[0]
 
 
-# 1114 - Unidirectional Link Delay (A flag + Reserved + Delay(u24))
+# 1114 - Unidirectional Link Delay
+# Layout (RFC 8571): byte0 A|RESERVED, bytes1..3 Delay(u24, microseconds)
 @LinkState.register()
 class UnidirectionalLinkDelay(BaseLS):
     TLV = 1114
@@ -27,16 +29,15 @@ class UnidirectionalLinkDelay(BaseLS):
     LEN = 4
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
-        flags = data[0]
-        anomalous = bool(flags & 0x80)
-        delay_us = _u24(data[2:5])
-        # return a structured value to keep the A-bit
+        anomalous = bool(data[0] & 0x80)
+        delay_us = _u24(data[1:4])
         return cls({'delay-us': delay_us, 'anomalous': anomalous})
 
 
-# 1115 - Min/Max Unidirectional Link Delay (A + R + Min(u24) + Max(u24))
+# 1115 - Min/Max Unidirectional Link Delay
+# Layout (RFC 8571): byte0 A|RESERVED, bytes1..3 Min(u24), byte4 RESERVED, bytes5..7 Max(u24)
 @LinkState.register()
 class MinMaxUnidirectionalLinkDelay(BaseLS):
     TLV = 1115
@@ -45,11 +46,10 @@ class MinMaxUnidirectionalLinkDelay(BaseLS):
     LEN = 8
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
-        flags = data[0]
-        anomalous = bool(flags & 0x80)
-        min_delay_us = _u24(data[2:5])
+        anomalous = bool(data[0] & 0x80)
+        min_delay_us = _u24(data[1:4])
         max_delay_us = _u24(data[5:8])
         return cls({
             'min-delay-us': min_delay_us,
@@ -58,7 +58,8 @@ class MinMaxUnidirectionalLinkDelay(BaseLS):
         })
 
 
-# 1116 - Unidirectional Delay Variation (R + Variation(u24))
+# 1116 - Unidirectional Delay Variation
+# Layout (RFC 8571): byte0 RESERVED, bytes1..3 Variation(u24, microseconds)
 @LinkState.register()
 class UnidirectionalDelayVariation(BaseLS):
     TLV = 1116
@@ -67,13 +68,14 @@ class UnidirectionalDelayVariation(BaseLS):
     LEN = 4
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
         variation_us = _u24(data[1:4])
         return cls(variation_us)
 
 
-# 1117 - Unidirectional Link Loss (A + R + Loss(u24) with 0.000003% units)
+# 1117 - Unidirectional Link Loss
+# Layout (RFC 8571): byte0 A|RESERVED, bytes1..3 Loss(u24), unidade = 0.000003% por unidade
 @LinkState.register()
 class UnidirectionalLinkLoss(BaseLS):
     TLV = 1117
@@ -84,11 +86,10 @@ class UnidirectionalLinkLoss(BaseLS):
     _UNIT_PERCENT = 0.000003  # 3e-6 percent per unit
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
-        flags = data[0]
-        anomalous = bool(flags & 0x80)
-        enc = _u24(data[2:5])
+        anomalous = bool(data[0] & 0x80)
+        enc = _u24(data[1:4])
         loss_percent = enc * cls._UNIT_PERCENT
         return cls({'loss-percent': loss_percent, 'anomalous': anomalous})
 
@@ -102,7 +103,7 @@ class UnidirectionalResidualBandwidth(BaseLS):
     LEN = 4
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
         return cls(unpack('!f', data)[0])
 
@@ -116,7 +117,7 @@ class UnidirectionalAvailableBandwidth(BaseLS):
     LEN = 4
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
         return cls(unpack('!f', data)[0])
 
@@ -130,6 +131,6 @@ class UnidirectionalUtilizedBandwidth(BaseLS):
     LEN = 4
 
     @classmethod
-    def unpack(cls, data):
+    def unpack(cls, data: bytes):
         cls.check(data)
         return cls(unpack('!f', data)[0])
